@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+
+import subprocess
+import sys
+import re
+import glob
+
+def print_usage():
+    usage_text = """
+Usage: ./terratarget [command] [options]
+
+Commands:
+  plan        Generate and show an execution plan
+  apply       Apply the changes required to reach the desired state of the configuration
+
+Options:
+  -target=    Target to include with a regex pattern. Can be used multiple times for multiple targets.
+  -auto-approve Automatically approve and apply proposed changes (only applicable to 'apply').
+
+Example:
+  ./terratarget plan -target="google_dns_record_set.core-ilb-us.*"
+
+Note: This script wraps Terraform commands to support regex patterns in the -target option.
+"""
+    print(usage_text)
+
+def confirm_execution(command):
+    """
+    Prompt the user to confirm execution of the Terraform command.
+    """
+    print("\nPlanned command:", " ".join(command))
+    print("\nDo you want to execute this command? [y/N]: ", end="")
+    choice = input().lower()
+    if choice not in ['y', 'yes']:
+        print("Execution aborted by the user.")
+        sys.exit(0)
+
+def run_terraform_command_with_targets(terraform_command, targets, other_args, auto_approve):
+    """
+    Execute the Terraform command with resolved targets and other arguments.
+    """
+    command = ["terraform"] + terraform_command + other_args
+    if targets:
+        print("\nTargets selected for operation:")
+        for target in targets:
+            print(f"  - {target}")
+        if not auto_approve:
+            confirm_execution(command + [f"-target={target}" for target in targets])
+    else:
+        print("\nWarning: No targets matched the wildcard patterns.", file=sys.stderr)
+        if not auto_approve:
+            confirm_execution(command)
+
+    print("\nExecuting:", " ".join(command + [f"-target={target}" for target in targets]))
+    subprocess.run(command + [f"-target={target}" for target in targets])
+
+def find_matching_resources(pattern):
+    """
+    Find resources matching the pattern in the Terraform state and .tf files.
+    """
+    matching_resources = set()
+
+    # Match in Terraform state
+    try:
+        state_list_output = subprocess.check_output(["terraform", "state", "list"], text=True)
+        for resource in state_list_output.splitlines():
+            if re.search(pattern, resource):
+                matching_resources.add(resource)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running terraform state list: {e}", file=sys.stderr)
+
+    # Match in .tf files
+    for tf_file in glob.glob('**/*.tf', recursive=True):
+        with open(tf_file, 'r') as file:
+            for line in file:
+                search_result = re.search(r'resource\s+"([^"]+)"\s+"([^"]+)"', line)
+                if search_result:
+                    resource_type, resource_name = search_result.groups()
+                    full_resource_name = f"{resource_type}.{resource_name}"
+                    if re.search(pattern, full_resource_name):
+                        matching_resources.add(full_resource_name)
+
+    return list(matching_resources)
+
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] in ['-h', '--help']:
+        print_usage()
+        sys.exit(0)
+
+    terraform_command = sys.argv[1:2]  # Should be 'plan' or 'apply'
+    if not terraform_command or terraform_command[0] not in ['plan', 'apply']:
+        print("Error: First argument must be 'plan' or 'apply'.", file=sys.stderr)
+        print_usage()
+        sys.exit(1)
+
+    auto_approve = '-auto-approve' in sys.argv
+    other_args = [arg for arg in sys.argv[2:] if arg != '-auto-approve']
+    targets = []
+
+    # Parse command-line arguments for targets
+    for arg in other_args:
+        if arg.startswith("-target="):
+            pattern = arg.split("=", 1)[1]
+            targets.extend(find_matching_resources(pattern))
+            other_args = [a for a in other_args if a != arg]
+
+    run_terraform_command_with_targets(terraform_command, targets, other_args, auto_approve)
+
+if __name__ == "__main__":
+    main()
+
