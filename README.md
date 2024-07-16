@@ -5,6 +5,7 @@ Terratarget is a Python script designed to enhance Terraform's targeting functio
 ## Features
 
 - **Regex Support**: Allows using regex patterns with the `-target` option to match resources dynamically.
+- **Exclusion Support**: Allows using regex patterns with the `-except` option to exclude specific resources from being targeted.
 - **Confirmation Prompt**: Provides a confirmation prompt before executing Terraform commands, enhancing safety (can be bypassed with `-auto-approve` for `apply`).
 - **Versatile**: Supports both `terraform plan` and `terraform apply` commands.
 
@@ -22,11 +23,12 @@ Ensure both Python and Terraform are installed on your system and accessible fro
 
 ## Usage
 
-Basic usage follows Terraform's syntax, with the addition of regex pattern support for the `-target` option:
+Basic usage follows Terraform's syntax, with the addition of regex pattern support for the `-target` and `-except` options:
 
 ```
 ./terratarget plan -target="resource_type.resource_name_pattern*"
 ./terratarget apply -target="resource_type.resource_name_pattern*" -auto-approve
+./terratarget plan -target="resource_type.resource_name_pattern*" -except="excluded_pattern"
 ```
 
 ### Examples
@@ -41,6 +43,12 @@ Basic usage follows Terraform's syntax, with the addition of regex pattern suppo
 
 ```
 ./terratarget apply -target="google_dns_record_set.www_tld.*" -auto-approve
+```
+
+- Plan changes for resources matching a specific pattern, but exclude certain resources:
+
+```
+./terratarget plan -target="google_dns_record_set.core-ilb-us.*" -except=".*test.*"
 ```
 
 ## Contributing
