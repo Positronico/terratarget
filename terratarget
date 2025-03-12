@@ -12,6 +12,7 @@ Usage: ./terratarget [command] [options]
 Commands:
   plan        Generate and show an execution plan
   apply       Apply the changes required to reach the desired state of the configuration
+  destroy     Destroy the changes needed to get desired state of the configuration
 
 Options:
   -target=    Target to include with a regex pattern. Can be used multiple times for multiple targets.
@@ -96,7 +97,7 @@ def main():
             excludes.append(pattern)
         elif arg == '-auto-approve':
             auto_approve = True
-        elif arg in ['plan', 'apply']:
+        elif arg in ['plan', 'apply', 'destroy']:
             terraform_command.append(arg)
         else:
             other_args.append(arg)
